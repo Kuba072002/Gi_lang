@@ -64,20 +64,23 @@ public class LLVMGenerator {
         return registerAllocatedArray;
     }
 
-    public static int allocateDoubleArrayAndStoreValues(int size, String[] values) {
-        main_text += "%"+register+" = alloca ["+size+" x double]\n";
+    public static int allocateDoubleArrayAndStoreValues(String arrayName,int size, String[] array) {
+        String globalArrayName = "@__const.main."+arrayName;
+
+        header_top += globalArrayName+" = unnamed_addr constant ["+size+ "x double] [";
+        for(int i = 0; i < array.length; i++){
+            header_top+= "double "+ array[i];
+            if(i != array.length-1){
+                header_top += ", ";
+            }
+        }
+        header_top += "]\n";
+        main_text += "%"+(register)+" = alloca ["+(size)+" x double]\n";
         register++;
         int registerAllocatedArray = register - 1;
-        main_text += "%"+register+" = bitcast ["+size+" x double]* %"+(register-1)+" to i8*\n";
+        main_text += "%"+(register)+" = bitcast ["+(size)+" x double]* %"+(register-1)+" to i8*\n";
         register++;
-        main_text += "call void @llvm.memset.p0i8.i64(i8* %"+(register-1)+", i8 0, i64 "+(size*8)+", i1 false)\n";
-        main_text += "%"+register+" = bitcast i8* %"+(register-1)+" to ["+size+" x double]*\n";
-        register++;
-        int registerArrayPtr = register - 1;
-
-        for(int i = 0; i < values.length; i++){
-            getPtrArrayAndStoreValue(values.length, values[i],registerArrayPtr ,i);
-        }
+        main_text += "call void @llvm.memcpy.p0i8.p0i8.i64(i8* %"+(register-1)+", i8* bitcast (["+(size)+" x double]* "+(globalArrayName)+" to i8*), i64 "+(size*8)+" , i1 false)\n";
         return registerAllocatedArray;
     }
 
@@ -289,12 +292,13 @@ public class LLVMGenerator {
             assign_int(name,"%"+(register-1));
         }
         if (array.varType == REAL) {
-            getArrayPtrReal(array.arrayAddress, array.size, "%" + counter);
-            load_double(name);
+            getArrayPtrReal(array.arrayAddress, array.size, "%" + (register-1));
+            load_double(String.valueOf(register-1));
             assign_real(name,"%"+(register-1));
         }
         load_int(String.valueOf(counter));
-        main_text += "%"+register+" = icmp slt i32 %"+(register-1)+", "+repetitions+"\n";
+        load_int(String.valueOf(repetitions));
+        main_text += "%"+register+" = icmp slt i32 %"+(register-2)+", %"+(register-1)+"\n";
         register++;
 
         main_text += "br i1 %"+(register-1)+", label %true"+br+", label %false"+br+"\n";

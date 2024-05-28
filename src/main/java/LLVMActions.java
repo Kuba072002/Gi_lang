@@ -213,7 +213,7 @@ public class LLVMActions extends Gi_langBaseListener {
             arrays.put(arrayId, new ArrayType(arrayId, VarType.INT, arrayAddress, intValues.size()));
         }
         if (!realValues.isEmpty()) {
-            int arrayAddress = LLVMGenerator.allocateDoubleArrayAndStoreValues(realValues.size(), realValues.toArray(String[]::new));
+            int arrayAddress = LLVMGenerator.allocateDoubleArrayAndStoreValues(arrayId,realValues.size(), realValues.toArray(String[]::new));
             arrays.put(arrayId, new ArrayType(arrayId, VarType.REAL, arrayAddress, realValues.size()));
         }
     }
@@ -317,7 +317,7 @@ public class LLVMActions extends Gi_langBaseListener {
         }
         if (array.varType == VarType.REAL) {
             LLVMGenerator.declare_real(name);
-            variables.put(name, VarType.INT);
+            variables.put(name, VarType.REAL);
         }
 
         LLVMGenerator.loopstart(name,array);
