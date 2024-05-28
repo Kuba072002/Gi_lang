@@ -280,13 +280,26 @@ public class LLVMActions extends Gi_langBaseListener {
     }
 
     @Override
-    public void enterBlockif(Gi_langParser.BlockifContext ctx) {
+    public void enterBlockIf(Gi_langParser.BlockIfContext ctx) {
         LLVMGenerator.ifstart();
     }
 
     @Override
-    public void exitBlockif(Gi_langParser.BlockifContext ctx) {
+    public void exitBlockIf(Gi_langParser.BlockIfContext ctx) {
         LLVMGenerator.ifend();
+    }
+
+    @Override
+    public void exitRangeValue(Gi_langParser.RangeValueContext ctx) {
+        Value v = getValue();
+        if (v.varType == VarType.REAL)
+            error(ctx.getStart().getLine(),"Wrong value type for range statement - real");
+        LLVMGenerator.repeatstart(v.name);
+    }
+
+    @Override
+    public void exitBlockLoop(Gi_langParser.BlockLoopContext ctx) {
+        LLVMGenerator.repeatend();
     }
 
     @Override

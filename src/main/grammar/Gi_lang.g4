@@ -8,7 +8,8 @@ stat: read
     | assign
     | assignArr
     | assignString
-    | if;
+    | if
+    | loop;
 
 assign: ID '=' expr0 ';';
 assignArr: ID '=' '{' ((INT|REAL)',')* (INT|REAL)? '}' ';';
@@ -37,10 +38,14 @@ arrValue: ID '[' INT ']';
 print: PRINT '(' value ')'';';
 read: READ '(' ID ')'';';
 
-if: IF '(' ifCondition ')' '{' blockif'}';
+if: IF '(' ifCondition ')' '{' blockIf'}';
 ifCondition: value condition value;
-blockif: stat*;
+blockIf: stat*;
 condition: (EQUAL | NOT_EQUAL | GREATER_EQ | LESSER_EQ | GREATER | LESSER);
+
+loop: 'range' '(' rangeValue ')' '{' blockLoop '}';
+rangeValue: value;
+blockLoop: stat*;
 
 IF: 'if';
 EQUAL: '==';

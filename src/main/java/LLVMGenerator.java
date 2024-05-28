@@ -232,6 +232,33 @@ public class LLVMGenerator {
         main_text += "false"+b+":\n";
     }
 
+    static void repeatstart(String repetitions){
+        declare_int(Integer.toString(register));
+        int counter = register;
+        register++;
+        assign_int(Integer.toString(counter), "0");
+        br++;
+        main_text += "br label %cond"+br+"\n";
+        main_text += "cond"+br+":\n";
+
+        load_int(Integer.toString(counter));
+        add_int("%"+(register-1), "1");
+        assign_int(Integer.toString(counter), "%"+(register-1));
+
+        main_text += "%"+register+" = icmp slt i32 %"+(register-2)+", "+repetitions+"\n";
+        register++;
+
+        main_text += "br i1 %"+(register-1)+", label %true"+br+", label %false"+br+"\n";
+        main_text += "true"+br+":\n";
+        brstack.push(br);
+    }
+
+    static void repeatend(){
+        int b = brstack.pop();
+        main_text += "br label %cond"+b+"\n";
+        main_text += "false"+b+":\n";
+    }
+
     static String generate(){
         String text = "";
         text += "declare i32 @printf(i8*, ...)\n";
