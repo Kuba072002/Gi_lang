@@ -5,12 +5,15 @@ prog: stat*;
 stat: read
     | print
     | stringConcat
+    | globalAssign
     | assign
     | assignArr
     | assignString
     | if
     | repeat
     | for;
+
+globalAssign: 'global' ID '=' value ';';
 
 assign: ID '=' expr0 ';';
 assignArr: ID '=' '{' ((INT|REAL)',')* (INT|REAL)? '}' ';';
@@ -49,7 +52,7 @@ rangeValue: value;
 blockLoop: stat*;
 
 for: forHead '{' blockLoop '}';
-forHead:  ID 'in' ID;
+forHead: 'for' ID 'in' ID;
 
 IF: 'if';
 EQUAL: '==';
