@@ -21,7 +21,7 @@ public class LLVMActions extends Gi_langBaseListener {
         else if (ctx.ID() != null) {
             stack.push(new Value(ctx.ID().getText(), VarType.ID));
             if (strings.containsKey(ctx.ID().getText()))
-                stack.push(new Value(ctx.ID().getText(),VarType.STRING));
+                stack.push(new Value(ctx.ID().getText(), VarType.STRING));
             else if (!variables.containsKey(ctx.ID().getText()))
                 error(ctx.getStart().getLine(), "Undeclared variable");
         }
@@ -29,30 +29,31 @@ public class LLVMActions extends Gi_langBaseListener {
 
     @Override
     public void exitAssignString(Gi_langParser.AssignStringContext ctx) {
-        String stringName = ctx.ID().getText();stringName.concat("asd");
+        String stringName = ctx.ID().getText();
+        stringName.concat("asd");
         String stringContent = ctx.STRING().getText();
-        stringContent = stringContent.substring(1,stringContent.length()-1);
+        stringContent = stringContent.substring(1, stringContent.length() - 1);
         int stringLengthWithNewLine = stringContent.length();
 
-        int stringPointer = LLVMGenerator.declare_string(stringLengthWithNewLine,stringName,stringContent);
-        strings.put(stringName,new StringType(String.valueOf(stringPointer),stringLengthWithNewLine,stringContent));
+        int stringPointer = LLVMGenerator.declare_string(stringLengthWithNewLine, stringName, stringContent);
+        strings.put(stringName, new StringType(String.valueOf(stringPointer), stringLengthWithNewLine, stringContent));
     }
 
     @Override
     public void exitStringValue(Gi_langParser.StringValueContext ctx) {
-        if (ctx.ID() != null){
+        if (ctx.ID() != null) {
             stack.push(new Value(ctx.ID().getText(), VarType.STRING));
         }
-        if (ctx.STRING() != null){
+        if (ctx.STRING() != null) {
             String content = ctx.STRING().getText();
-            content = content.substring(1,content.length()-1);
+            content = content.substring(1, content.length() - 1);
             int lengthWithNewLine = content.length();
 
             String anonymousName = "anonymous" + LLVMGenerator.anonymousString;
             LLVMGenerator.anonymousString++;
 
-            int stringPointer = LLVMGenerator.declare_string(lengthWithNewLine,anonymousName,content);
-            strings.put(anonymousName,new StringType(String.valueOf(stringPointer),lengthWithNewLine,content));
+            int stringPointer = LLVMGenerator.declare_string(lengthWithNewLine, anonymousName, content);
+            strings.put(anonymousName, new StringType(String.valueOf(stringPointer), lengthWithNewLine, content));
             stack.push(new Value(anonymousName, VarType.STRING));
         }
     }
@@ -60,8 +61,8 @@ public class LLVMActions extends Gi_langBaseListener {
     @Override
     public void exitStringConcat(Gi_langParser.StringConcatContext ctx) {
         String stringName = ctx.ID().getText();
-        if (strings.containsKey(stringName)){
-            error(ctx.getStart().getLine(),"String %s already defined".formatted(stringName));
+        if (strings.containsKey(stringName)) {
+            error(ctx.getStart().getLine(), "String %s already defined".formatted(stringName));
         }
         Value value2 = stack.pop();
         Value value1 = stack.pop();
@@ -72,26 +73,26 @@ public class LLVMActions extends Gi_langBaseListener {
         String concatedValue = stringObj1.content + stringObj2.content;
 
         int stringRegisterPointer = LLVMGenerator.declare_string(concatedLength, stringName, concatedValue);
-        strings.put(stringName, new StringType(String.valueOf(stringRegisterPointer),concatedLength, concatedValue));
+        strings.put(stringName, new StringType(String.valueOf(stringRegisterPointer), concatedLength, concatedValue));
 
     }
 
     @Override
     public void exitArrValue(Gi_langParser.ArrValueContext ctx) {
         String arrayId = ctx.ID().getText();
-        if(!arrays.containsKey(arrayId)){
-            error(ctx.getStart().getLine(), "Array "+(arrayId)+" not declared");
+        if (!arrays.containsKey(arrayId)) {
+            error(ctx.getStart().getLine(), "Array " + (arrayId) + " not declared");
         }
         ArrayType array = arrays.get(arrayId);
         String idx = ctx.INT().getText();
-        if(array.varType == VarType.INT){
+        if (array.varType == VarType.INT) {
             LLVMGenerator.getArrayPtrInt(array.arrayAddress, array.size, idx);
-            LLVMGenerator.load_int(String.valueOf(LLVMGenerator.register -1));
+            LLVMGenerator.load_int(String.valueOf(LLVMGenerator.register - 1));
             stack.push(new Value("%" + (LLVMGenerator.register - 1), VarType.INT));
         }
-        if(array.varType == VarType.REAL){
+        if (array.varType == VarType.REAL) {
             LLVMGenerator.getArrayPtrReal(array.arrayAddress, array.size, idx);
-            LLVMGenerator.load_double(String.valueOf(LLVMGenerator.register -1));
+            LLVMGenerator.load_double(String.valueOf(LLVMGenerator.register - 1));
             stack.push(new Value("%" + (LLVMGenerator.register - 1), VarType.REAL));
         }
     }
@@ -237,7 +238,7 @@ public class LLVMActions extends Gi_langBaseListener {
             } else if (strings.containsKey(id)) {
                 StringType stringType = strings.get(id);
 //                System.out.println("///////////////"+stringType);
-                LLVMGenerator.printf_string(stringType.name,stringType.length);
+                LLVMGenerator.printf_string(stringType.name, stringType.length);
             } else error(ctx.getStart().getLine(), "Unrecoginezd variable " + id);
         } else {
             error(ctx.getStart().getLine(), "Invalid print statement");
@@ -258,6 +259,34 @@ public class LLVMActions extends Gi_langBaseListener {
         } else {
             error(ctx.getStart().getLine(), "Can't read value");
         }
+    }
+
+    @Override
+    public void exitIfCondition(Gi_langParser.IfConditionContext ctx) {
+        Value v2 = getValue();
+        Value v1 = getValue();
+        String condition = ctx.condition().getText();
+
+        if (v1.varType == v2.varType) {
+            if (v1.varType == VarType.INT) {
+                LLVMGenerator.icmp_int(v1.name, v2.name, condition);
+            }
+            if (v1.varType == VarType.REAL) {
+                LLVMGenerator.icmp_double(v1.name, v2.name, condition);
+            }
+        } else {
+            error(ctx.getStart().getLine(), "IF statement type mismatch");
+        }
+    }
+
+    @Override
+    public void enterBlockif(Gi_langParser.BlockifContext ctx) {
+        LLVMGenerator.ifstart();
+    }
+
+    @Override
+    public void exitBlockif(Gi_langParser.BlockifContext ctx) {
+        LLVMGenerator.ifend();
     }
 
     @Override

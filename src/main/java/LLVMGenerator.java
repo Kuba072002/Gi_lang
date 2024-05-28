@@ -1,9 +1,13 @@
+import java.util.Stack;
+
 public class LLVMGenerator {
     static String header_text = "";
     static String header_top = "";
     static String main_text = "";
     static int register = 1;
     static int anonymousString = 0;
+    static int br = 0;
+    static Stack<Integer> brstack = new Stack<>();
 
     static void declare_int(String id){
         main_text += "%"+id+" = alloca i32\n";
@@ -186,6 +190,46 @@ public class LLVMGenerator {
         main_text += "%"+register+" = getelementptr inbounds [" + numberOfElems+" x double]," +
                 " ["+numberOfElems+" x double]* %"+arrayAddress+", i64 0, i64 "+idx+"\n";
         register++;
+    }
+
+    static void icmp_int(String v1, String v2, String cond){
+        String sign = switch (cond){
+            case ("==") -> "eq";
+            case ("!=") -> "ne";
+            case ("<=") -> "ule";
+            case (">=") -> "uge";
+            case ("<") -> "ult";
+            case (">") -> "ugt";
+            default -> "";
+        };
+        main_text += "%"+register+" = icmp "+ sign + " i32 "+v1+", "+v2+"\n";
+        register++;
+    }
+    static void icmp_double(String v1, String v2, String cond){
+        String sign = switch (cond){
+            case ("==") -> "oeq";
+            case ("!=") -> "one";
+            case ("<=") -> "ole";
+            case (">=") -> "oge";
+            case ("<") -> "olt";
+            case (">") -> "ogt";
+            default -> "";
+        };
+        main_text += "%"+register+" = fcmp "+sign+" double "+v1+", "+v2+"\n";
+        register++;
+    }
+
+    static void ifstart(){
+        br++;
+        main_text += "br i1 %"+(register-1)+", label %true"+br+", label %false"+br+"\n";
+        main_text += "true"+br+":\n";
+        brstack.push(br);
+    }
+
+    static void ifend(){
+        int b = brstack.pop();
+        main_text += "br label %false"+b+"\n";
+        main_text += "false"+b+":\n";
     }
 
     static String generate(){
