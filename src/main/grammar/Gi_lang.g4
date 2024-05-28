@@ -9,7 +9,8 @@ stat: read
     | assignArr
     | assignString
     | if
-    | loop;
+    | repeat
+    | for;
 
 assign: ID '=' expr0 ';';
 assignArr: ID '=' '{' ((INT|REAL)',')* (INT|REAL)? '}' ';';
@@ -43,9 +44,12 @@ ifCondition: value condition value;
 blockIf: stat*;
 condition: (EQUAL | NOT_EQUAL | GREATER_EQ | LESSER_EQ | GREATER | LESSER);
 
-loop: 'range' '(' rangeValue ')' '{' blockLoop '}';
+repeat: 'range' '(' rangeValue ')' '{' blockLoop '}';
 rangeValue: value;
 blockLoop: stat*;
+
+for: forHead '{' blockLoop '}';
+forHead:  ID 'in' ID;
 
 IF: 'if';
 EQUAL: '==';

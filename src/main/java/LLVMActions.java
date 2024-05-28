@@ -3,6 +3,7 @@ import types.ArrayType;
 import types.StringType;
 import types.VarType;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Stack;
 
@@ -294,12 +295,33 @@ public class LLVMActions extends Gi_langBaseListener {
         Value v = getValue();
         if (v.varType == VarType.REAL)
             error(ctx.getStart().getLine(),"Wrong value type for range statement - real");
+
         LLVMGenerator.repeatstart(v.name);
     }
 
     @Override
     public void exitBlockLoop(Gi_langParser.BlockLoopContext ctx) {
         LLVMGenerator.repeatend();
+    }
+
+    @Override
+    public void exitForHead(Gi_langParser.ForHeadContext ctx) {
+        String name = ctx.ID(0).getText();
+        String arrName = ctx.ID(1).getText();
+        if (!arrays.containsKey(arrName))
+            error(ctx.getStart().getLine(), "Array { %s } not exit".formatted(arrName));
+        ArrayType array = arrays.get(arrName);
+        if (array.varType == VarType.INT) {
+            LLVMGenerator.declare_int(name);
+            variables.put(name, VarType.INT);
+        }
+        if (array.varType == VarType.REAL) {
+            LLVMGenerator.declare_real(name);
+            variables.put(name, VarType.INT);
+        }
+
+        LLVMGenerator.loopstart(name,array);
+
     }
 
     @Override

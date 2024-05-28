@@ -1,4 +1,9 @@
+import types.ArrayType;
+
 import java.util.Stack;
+
+import static types.VarType.INT;
+import static types.VarType.REAL;
 
 public class LLVMGenerator {
     static String header_text = "";
@@ -182,13 +187,13 @@ public class LLVMGenerator {
 
     public static void getArrayPtrInt(int arrayAddress, int numberOfElems, String idx) {
         main_text += "%"+register+" = getelementptr inbounds [" + numberOfElems+" x i32], " +
-                "["+numberOfElems+" x i32]* %"+arrayAddress+", i64 0, i64 "+idx+"\n";
+                "["+numberOfElems+" x i32]* %"+arrayAddress+", i32 0, i32 "+idx+"\n";
         register++;
     }
 
     public static void getArrayPtrReal(int arrayAddress, int numberOfElems, String idx) {
         main_text += "%"+register+" = getelementptr inbounds [" + numberOfElems+" x double]," +
-                " ["+numberOfElems+" x double]* %"+arrayAddress+", i64 0, i64 "+idx+"\n";
+                " ["+numberOfElems+" x double]* %"+arrayAddress+", i32 0, i32 "+idx+"\n";
         register++;
     }
 
@@ -250,6 +255,7 @@ public class LLVMGenerator {
 
         main_text += "br i1 %"+(register-1)+", label %true"+br+", label %false"+br+"\n";
         main_text += "true"+br+":\n";
+        printf_int(String.valueOf(counter));
         brstack.push(br);
     }
 
@@ -257,6 +263,44 @@ public class LLVMGenerator {
         int b = brstack.pop();
         main_text += "br label %cond"+b+"\n";
         main_text += "false"+b+":\n";
+    }
+
+    static void loopstart(String name , ArrayType array){
+        declare_int(Integer.toString(register));
+        assign_int(Integer.toString(register),String.valueOf(array.size));
+        int repetitions = register;
+        register++;
+
+        int counter = register;
+        declare_int(Integer.toString(counter));
+        register++;
+        assign_int(Integer.toString(counter), "-1");
+        br++;
+        main_text += "br label %cond"+br+"\n";
+        main_text += "cond"+br+":\n";
+
+        load_int(Integer.toString(counter));
+        add_int("%"+(register-1), "1");
+        assign_int(Integer.toString(counter), "%"+(register-1));
+//        load_int(String.valueOf(counter));
+        if (array.varType == INT) {
+            getArrayPtrInt(array.arrayAddress, array.size, "%"+(register-1));
+            load_int(String.valueOf(register-1));
+            assign_int(name,"%"+(register-1));
+        }
+        if (array.varType == REAL) {
+            getArrayPtrReal(array.arrayAddress, array.size, "%" + counter);
+            load_double(name);
+            assign_real(name,"%"+(register-1));
+        }
+        load_int(String.valueOf(counter));
+        main_text += "%"+register+" = icmp slt i32 %"+(register-1)+", "+repetitions+"\n";
+        register++;
+
+        main_text += "br i1 %"+(register-1)+", label %true"+br+", label %false"+br+"\n";
+        main_text += "true"+br+":\n";
+
+        brstack.push(br);
     }
 
     static String generate(){
