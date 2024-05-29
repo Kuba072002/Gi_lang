@@ -1,0 +1,12 @@
+a = 25;
+
+arr = {20,35,40};
+for v in arr {
+    print(v);
+}
+for x in arr {
+    if ( x >= a){
+        x = x*2;
+        print(x);
+    }
+}

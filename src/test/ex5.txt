@@ -1,0 +1,25 @@
+five = 5;
+nineReal = 9.214124;
+print(five);
+print(nineReal);
+read(five);
+print(five);
+read(nineReal);
+print(nineReal);
+
+a = 3;
+b = 4;
+a = a * 5 + b;
+d = 9.214124 / 3.1;
+print(a);
+print(b);
+
+
+arr = {3, 4, 5};
+bFromArr = arr[2];
+print(bFromArr);
+
+hello = "Hello ";
+world= "World";
+helloWorld = hello.concat(world);
+print(helloWorld);

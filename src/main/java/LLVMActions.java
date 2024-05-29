@@ -6,8 +6,7 @@ import types.VarType;
 import java.util.HashMap;
 import java.util.Stack;
 
-import static types.VarType.INT;
-import static types.VarType.REAL;
+import static types.VarType.*;
 
 public class LLVMActions extends Gi_langBaseListener {
     HashMap<String, VarType> variables = new HashMap<>();
@@ -26,7 +25,7 @@ public class LLVMActions extends Gi_langBaseListener {
         else if (ctx.ID() != null) {
             var id = ctx.ID().getText();
             if (variables.containsKey(id) || globalVariables.containsKey(id))
-                stack.push(new Value(id, VarType.ID));
+                stack.push(new Value(id, ID));
             else if (strings.containsKey(id))
                 stack.push(new Value(id, VarType.STRING));
             else error(ctx.getStart().getLine(), "Undeclared variable");
@@ -36,7 +35,6 @@ public class LLVMActions extends Gi_langBaseListener {
     @Override
     public void exitAssignString(Gi_langParser.AssignStringContext ctx) {
         String stringName = ctx.ID().getText();
-        stringName.concat("asd");
         String stringContent = ctx.STRING().getText();
         stringContent = stringContent.substring(1, stringContent.length() - 1);
         int stringLengthWithNewLine = stringContent.length();
@@ -248,12 +246,36 @@ public class LLVMActions extends Gi_langBaseListener {
 
     @Override
     public void exitPrint(Gi_langParser.PrintContext ctx) {
-        Value v = getValue();
+        Value v = stack.pop();
+        if (v.varType == ID) {
+            VarType idVarType;
+            if (variables.containsKey(v.name)) {
+                idVarType = variables.get(v.name);
+                switch (idVarType){
+                    case ID -> LLVMGenerator.printf_int(v.name);
+                    case REAL -> LLVMGenerator.printf_double(v.name);
+                }
+                return;
+            } else if (globalVariables.containsKey(v.name)) {
+                idVarType = globalVariables.get(v.name);
+                switch (idVarType){
+                    case ID -> {
+                        LLVMGenerator.load_global_int(v.name);
+                        LLVMGenerator.printf_int(String.valueOf(LLVMGenerator.register - 1));
+                    }
+                    case REAL -> {
+                        LLVMGenerator.load_global_double(v.name);
+                        LLVMGenerator.printf_double(String.valueOf(LLVMGenerator.register - 1));
+                    }
+                }
+                return;
+            }
+        }
         if (v.varType == INT) {
             LLVMGenerator.printf_value_int(v.name);
         } else if (v.varType == REAL) {
             LLVMGenerator.printf_value_double(v.name);
-        } else if (v.varType == VarType.STRING) {
+        }else if (v.varType == STRING) {
             StringType stringType = strings.get(v.name);
             LLVMGenerator.printf_string(stringType.name, stringType.length);
         } else {
@@ -346,7 +368,7 @@ public class LLVMActions extends Gi_langBaseListener {
 
     Value getValue() {
         Value v = stack.pop();
-        if (v.varType == VarType.ID) convertVar(v);
+        if (v.varType == ID) convertVar(v);
         return v;
     }
 

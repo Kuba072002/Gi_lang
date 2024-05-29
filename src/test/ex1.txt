@@ -1,8 +1,7 @@
-a = "Hello ";
-b = "World!";
+a = 225;
 print(a);
-print(b);
-aPlusb = a.concat(b);
-print(aPlusb);
-hi = "Hi ".concat("User!");
-print(hi);
+print(22);
+arr = {2.2, 4.5, 6.1};
+print(arr[1]);
+hello = "Hello";
+print(hello);

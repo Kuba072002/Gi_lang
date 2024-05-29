@@ -288,7 +288,6 @@ public class LLVMGenerator {
 
         main_text += "br i1 %" + (register - 1) + ", label %true" + br + ", label %false" + br + "\n";
         main_text += "true" + br + ":\n";
-        printf_int(String.valueOf(counter));
         brstack.push(br);
     }
 
