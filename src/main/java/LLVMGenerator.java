@@ -1,6 +1,7 @@
 import types.ArrayType;
+import types.VarType;
 
-import java.util.Stack;
+import java.util.*;
 
 import static types.VarType.INT;
 import static types.VarType.REAL;
@@ -13,7 +14,30 @@ public class LLVMGenerator {
     static int anonymousString = 0;
     static int br = 0;
     static Stack<Integer> brstack = new Stack<>();
+    static Map<VarType,String> types = Map.of(INT,"i32",REAL,"double");
+    static Map<List<VarType>,String> convertTypes = Map.of(
+            List.of(REAL,INT),"sitofp",
+            List.of(INT,REAL),"fptosi"
+    );
 
+
+    static void declare(String id, VarType type){
+        main_text += "%" + id + " = alloca "+types.get(type)+"\n";
+    }
+
+    static void assign(String id, String value,VarType type) {
+        main_text += "store "+types.get(type)+" " + value + ", "+types.get(type)+"* %" + id + "\n";
+    }
+
+    static void changeType(String id,VarType newType,VarType oldType){
+        String operator = convertTypes.get(List.of(oldType,newType));
+        if (operator == null)
+            throw new RuntimeException();
+        main_text += "%" + register + " = "+operator+" "+ types.get(newType) + " %" + (register - 1) + " to " + types.get(oldType) + "\n";
+        assign(id,"%"+register,oldType);
+        register++;
+    }
+    //deprecated
     static void declare_int(String id) {
         main_text += "%" + id + " = alloca i32\n";
     }
@@ -21,7 +45,7 @@ public class LLVMGenerator {
     static void declare_global_int(String id, String value) {
         header_text += "@" + id + " = global i32 " + value + "\n";
     }
-
+    //deprecated
     static void declare_real(String id) {
         main_text += "%" + id + " = alloca double\n";
     }
@@ -43,7 +67,7 @@ public class LLVMGenerator {
 
         return arrayRegister;
     }
-
+    //deprecated
     static void assign_int(String id, String value) {
         main_text += "store i32 " + value + ", i32* %" + id + "\n";
     }
@@ -51,7 +75,7 @@ public class LLVMGenerator {
     static void assign_global_int(String id, String value) {
         main_text += "store i32 " + value + ", i32* 2" + id + "\n";
     }
-
+    //deprecated
     static void assign_real(String id, String value) {
         main_text += "store double " + value + ", double* %" + id + "\n";
     }
@@ -197,6 +221,16 @@ public class LLVMGenerator {
         register++;
     }
 
+    static void load(String id, VarType type){
+        main_text += "%" + register + " = load "+types.get(type)+", "+types.get(type)+"* %" + id + "\n";
+        register++;
+    }
+
+    static void load_global(String id, VarType type){
+        main_text += "%" + register + " = load "+types.get(type)+", "+types.get(type)+"* @" + id + "\n";
+        register++;
+    }
+
     static void load_int(String id) {
         main_text += "%" + register + " = load i32, i32* %" + id + "\n";
         register++;
@@ -214,6 +248,12 @@ public class LLVMGenerator {
 
     static void load_global_double(String id) {
         main_text += "%" + register + " = load double, double* @" + id + "\n";
+        register++;
+    }
+
+    public static void getArrayPtr(int arrayAddress, int numberOfElems, String idx, VarType type) {
+        main_text += "%" + register + " = getelementptr inbounds [" + numberOfElems + " x "+types.get(type)+"]," +
+                " [" + numberOfElems + " x "+types.get(type)+"]* %" + arrayAddress + ", i32 0, i32 " + idx + "\n";
         register++;
     }
 

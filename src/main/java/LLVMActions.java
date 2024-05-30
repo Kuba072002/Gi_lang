@@ -89,15 +89,10 @@ public class LLVMActions extends Gi_langBaseListener {
         }
         ArrayType array = arrays.get(arrayId);
         String idx = ctx.INT().getText();
-        if (array.varType == INT) {
-            LLVMGenerator.getArrayPtrInt(array.arrayAddress, array.size, idx);
+        if (array.varType == INT || array.varType == REAL) {
+            LLVMGenerator.getArrayPtr(array.arrayAddress, array.size, idx, array.varType);
             LLVMGenerator.load_int(String.valueOf(LLVMGenerator.register - 1));
-            stack.push(new Value("%" + (LLVMGenerator.register - 1), INT));
-        }
-        if (array.varType == REAL) {
-            LLVMGenerator.getArrayPtrReal(array.arrayAddress, array.size, idx);
-            LLVMGenerator.load_double(String.valueOf(LLVMGenerator.register - 1));
-            stack.push(new Value("%" + (LLVMGenerator.register - 1), REAL));
+            stack.push(new Value("%" + (LLVMGenerator.register - 1), array.varType));
         }
     }
 
@@ -185,22 +180,18 @@ public class LLVMActions extends Gi_langBaseListener {
         if (isDeclared) {
             VarType varType = variables.get(id);
             if (varType != v.varType) {
-                error(ctx.getStart().getLine(), "Wrong value type for variable " + id + "( " + v.varType + " )");
+                if (varType == INT && v.varType == REAL || varType == REAL && v.varType == INT) {
+                    LLVMGenerator.changeType(id, v.varType, varType);
+                    return;
+                }
             }
         }
-        if (v.varType == INT) {
+        if (v.varType == INT || v.varType == REAL) {
             if (!isDeclared) {
-                LLVMGenerator.declare_int(id);
-                variables.put(id, INT);
+                LLVMGenerator.declare(id, v.varType);
+                variables.put(id, v.varType);
             }
-            LLVMGenerator.assign_int(id, v.name);
-        }
-        if (v.varType == REAL) {
-            if (!isDeclared) {
-                LLVMGenerator.declare_real(id);
-                variables.put(id, REAL);
-            }
-            LLVMGenerator.assign_real(id, v.name);
+            LLVMGenerator.assign(id, v.name, v.varType);
         }
     }
 
@@ -251,14 +242,14 @@ public class LLVMActions extends Gi_langBaseListener {
             VarType idVarType;
             if (variables.containsKey(v.name)) {
                 idVarType = variables.get(v.name);
-                switch (idVarType){
+                switch (idVarType) {
                     case INT -> LLVMGenerator.printf_int(v.name);
                     case REAL -> LLVMGenerator.printf_double(v.name);
                 }
                 return;
             } else if (globalVariables.containsKey(v.name)) {
                 idVarType = globalVariables.get(v.name);
-                switch (idVarType){
+                switch (idVarType) {
                     case ID -> {
                         LLVMGenerator.load_global_int(v.name);
                         LLVMGenerator.printf_int(String.valueOf(LLVMGenerator.register - 1));
@@ -275,7 +266,7 @@ public class LLVMActions extends Gi_langBaseListener {
             LLVMGenerator.printf_value_int(v.name);
         } else if (v.varType == REAL) {
             LLVMGenerator.printf_value_double(v.name);
-        }else if (v.varType == STRING) {
+        } else if (v.varType == STRING) {
             StringType stringType = strings.get(v.name);
             LLVMGenerator.printf_string(stringType.name, stringType.length);
         } else {
@@ -348,17 +339,11 @@ public class LLVMActions extends Gi_langBaseListener {
         if (!arrays.containsKey(arrName))
             error(ctx.getStart().getLine(), "Array { %s } not exit".formatted(arrName));
         ArrayType array = arrays.get(arrName);
-        if (array.varType == INT) {
-            LLVMGenerator.declare_int(name);
-            variables.put(name, INT);
+        if (array.varType == INT || array.varType == REAL) {
+            LLVMGenerator.declare(name, array.varType);
+            variables.put(name, array.varType);
         }
-        if (array.varType == REAL) {
-            LLVMGenerator.declare_real(name);
-            variables.put(name, REAL);
-        }
-
         LLVMGenerator.loopstart(name, array);
-
     }
 
     @Override
@@ -375,21 +360,15 @@ public class LLVMActions extends Gi_langBaseListener {
     void convertVar(Value v) {
         if (variables.containsKey(v.name)) {
             v.varType = variables.get(v.name);
-            if (v.varType == INT) {
-                LLVMGenerator.load_int(v.name);
-                v.name = "%" + (LLVMGenerator.register - 1);
-            } else if (v.varType == REAL) {
-                LLVMGenerator.load_double(v.name);
+            if (v.varType == INT || v.varType == REAL) {
+                LLVMGenerator.load(v.name, v.varType);
                 v.name = "%" + (LLVMGenerator.register - 1);
             }
         }
         if (globalVariables.containsKey(v.name)) {
             v.varType = globalVariables.get(v.name);
-            if (v.varType == INT) {
-                LLVMGenerator.load_global_int(v.name);
-                v.name = "%" + (LLVMGenerator.register - 1);
-            } else if (v.varType == REAL) {
-                LLVMGenerator.load_global_double(v.name);
+            if (v.varType == INT || v.varType == REAL) {
+                LLVMGenerator.load_global(v.name, v.varType);
                 v.name = "%" + (LLVMGenerator.register - 1);
             }
         }
