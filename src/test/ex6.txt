@@ -1,12 +1,22 @@
-a = 25;
+twentyFive = 25;
 
 arr = {20,35,40};
 for v in arr {
     print(v);
 }
 for x in arr {
-    if ( x >= a){
+    if ( x >= twentyFive){
         x = x*2;
         print(x);
     }
 }
+
+a = 225;
+b = 3.3;
+b = a;
+print(b);
+c = 4.4;
+b = c;
+a = c;
+print(b);
+print(a);

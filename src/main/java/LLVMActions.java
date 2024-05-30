@@ -1,13 +1,7 @@
 import org.antlr.v4.runtime.tree.ParseTree;
-import types.ArrayType;
-import types.FuncType;
-import types.StringType;
-import types.VarType;
+import types.*;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Stack;
+import java.util.*;
 
 import static types.VarType.*;
 
@@ -17,8 +11,9 @@ public class LLVMActions extends Gi_langBaseListener {
     Map<String, String> localVariablesMapped = new HashMap<String, String>();
     Map<String, String> functionsWithRetType = new HashMap<>();
     HashMap<String, VarType> globalVariables = new HashMap<>();
-    //    HashMap<String, HashMap<String, VarType>> structs = new HashMap<>();
-//    HashMap<String, String> declaredStructs = new HashMap<>();
+    HashMap<String, Structure> definedStructs = new HashMap<>();
+    HashMap<String, Structure> structuresVariablesToStructure = new HashMap<>();
+    HashMap<String, String> structuresVariablesMappedNames = new HashMap<>();
     HashMap<String, FuncType> functions = new HashMap<>();
     HashMap<String, ArrayType> arrays = new HashMap<>();
     HashMap<String, StringType> strings = new HashMap<>();
@@ -40,10 +35,11 @@ public class LLVMActions extends Gi_langBaseListener {
         } else if (ctx.functionExec() != null) {
             var str = ctx.functionExec().ID().getText();
             var varType = functionsWithRetType.get(str);
-            if (varType == "i32"){
-                stack.push(new Value("%"+(LLVMGenerator.register-1), INT));
-            }if (varType == "double"){
-                stack.push(new Value("%"+(LLVMGenerator.register-1), REAL));
+            if (varType == "i32") {
+                stack.push(new Value("%" + (LLVMGenerator.register - 1), INT));
+            }
+            if (varType == "double") {
+                stack.push(new Value("%" + (LLVMGenerator.register - 1), REAL));
             }
         }
     }
@@ -437,70 +433,90 @@ public class LLVMActions extends Gi_langBaseListener {
 
     }
 
-//    @Override
-//    public void enterStruct(Gi_langParser.StructContext ctx) {
-////        LLVMGenerator.global = true;
-//        String name = ctx.ID().getText();
-//        if (structs.containsKey(name))
-//            error(ctx.getStart().getLine(), "Struct with %s already defined".formatted(name));
-//        variables = new HashMap<>();
-//    }
-//
-//    @Override
-//    public void exitStruct(Gi_langParser.StructContext ctx) {
-//        var ids = ctx.blockStruct().ID().stream()
-//                .map(ParseTree::getText)
-//                .toList();
-//        var types = ctx.blockStruct().type().stream()
-//                .map(t -> VarType.valueOf(t.getText().toUpperCase()))
-//                .toList();
-//        if (ids.isEmpty() || types.isEmpty())
-//            error(ctx.getStart().getLine(), "Wrong struct definition - cannot be empty");
-//        IntStream.range(0, ids.size()).forEach(i -> {
-//            var id = ids.get(i);
-//            if (variables.containsKey(id))
-//                error(ctx.getStart().getLine(), "Variable %s already defined in struct".formatted(id));
-//            variables.put(id, types.get(i));
-//        });
-//        String name = ctx.ID().getText();
-//        LLVMGenerator.createStruct(name, types);
-////        LLVMGenerator.global = false;
-//        structs.put(name, variables);
-//    }
-//
-//    @Override
-//    public void exitStructAssign(Gi_langParser.StructAssignContext ctx) {
-//        String id = ctx.ID(0).getText();
-//        String structId = ctx.ID(1).getText();
-//        LLVMGenerator.declare_stuct(id, structId);
-//        declaredStructs.put(id,structId);
-//    }
-//
-//
-//    @Override
-//    public void exitStructValueAssign(Gi_langParser.StructValueAssignContext ctx) {
-//        String structVariableName = ctx.ID().getText();
-//        if(!structuresVariablesMappedNames.containsKey(structVariableName)) error(ctx.getStart().getLine(), "Struct not initialized " + structVariableName);
-//        String propName = ctx.structProp().getText();
-//        Structure s = structuresVariablesToStructure.get(structVariableName);
-//        if(!s.propNames.contains(propName)) error(ctx.getStart().getLine(), "Struct does not have this prop name " + propName);
-//        String propType = s.types.get(s.propNames.indexOf(propName));
-//        if(propType.equals("i32") && ctx.structPropValue().INT() == null || propType.equals("double") && ctx.structPropValue().REAL() == null ){
-//            error(ctx.getStart().getLine(), "Trying to assign inappropriate value " + propName);
-//        }
-//        String mappedVariable = structuresVariablesMappedNames.get(structVariableName);
-//        if(ctx.structPropValue().INT()!=null){
-//            String value = ctx.structPropValue().INT().getText();
-//            LLVMGenerator.getPtrToStructProp(s.name, mappedVariable, s.propNames.indexOf(propName));
-//            LLVMGenerator.assign_i32(String.valueOf(LLVMGenerator.register-1),value);
-//        }
-//
-//        if(ctx.structPropValue().REAL()!=null){
-//            String value = ctx.structPropValue().REAL().getText();
-//            LLVMGenerator.getPtrToStructProp(s.name, mappedVariable, s.propNames.indexOf(propName));
-//            LLVMGenerator.assign_double(String.valueOf(LLVMGenerator.register-1),value);
-//        }
-//    }
+    @Override
+    public void enterStruct(Gi_langParser.StructContext ctx) {
+        LLVMGenerator.global = true;
+        String name = ctx.ID().getText();
+        if (definedStructs.containsKey(name))
+            error(ctx.getStart().getLine(), "Struct with %s already defined".formatted(name));
+//        localVariables.clear();
+    }
+
+    @Override
+    public void exitStruct(Gi_langParser.StructContext ctx) {
+        var ids = ctx.blockStruct().ID().stream()
+                .map(ParseTree::getText)
+                .toList();
+        var types = ctx.blockStruct().type().stream()
+                .map(t -> VarType.valueOf(t.getText().toUpperCase()))
+                .toList();
+        if (ids.isEmpty() || types.isEmpty())
+            error(ctx.getStart().getLine(), "Wrong struct definition - cannot be empty");
+        var variablesTmp = new LinkedHashMap<String, VarType>();
+        for (int i = 0; i < ids.size(); i++) {
+            if (variablesTmp.containsKey(ids.get(i)))
+                error(ctx.getStart().getLine(), "Variable %s already defined in struct".formatted(ids.get(i)));
+            variablesTmp.put(ids.get(i), types.get(i));
+        }
+        String structName = ctx.ID().getText();
+        LLVMGenerator.createStruct(structName, types);
+        LLVMGenerator.global = false;
+        definedStructs.put(structName, new Structure(structName, variablesTmp));
+    }
+
+    @Override
+    public void exitStructAssign(Gi_langParser.StructAssignContext ctx) {
+        String id = ctx.ID(0).getText();
+        String structId = ctx.ID(1).getText();
+        LLVMGenerator.declare_struct(id, structId);
+        structuresVariablesToStructure.put(id, definedStructs.get(structId));
+        structuresVariablesMappedNames.put(id, String.valueOf(LLVMGenerator.register - 1));
+    }
+
+
+    @Override
+    public void exitStructValueAssign(Gi_langParser.StructValueAssignContext ctx) {
+        String structVariableName = ctx.ID().getText();
+        if (!structuresVariablesMappedNames.containsKey(structVariableName))
+            error(ctx.getStart().getLine(), "Struct not initialized " + structVariableName);
+        String propName = ctx.structProp().ID().getText();
+        Structure struct = structuresVariablesToStructure.get(structVariableName);
+        if (!struct.variables.containsKey(propName))
+            error(ctx.getStart().getLine(), "Struct does not have this prop name " + propName);
+        VarType propType = struct.variables.get(propName);
+        Value value = getValue();
+        if (propType != value.varType) {
+            error(ctx.getStart().getLine(), "Trying to assign inappropriate value " + propName);
+        }
+        String mappedVariable = structuresVariablesMappedNames.get(structVariableName);
+        if (propType == INT || propType == REAL) {
+            LLVMGenerator.getPtrToStructProp(struct.name, mappedVariable, struct.variables.keySet().stream().toList().indexOf(propName));
+            LLVMGenerator.assign(String.valueOf(LLVMGenerator.register - 1), value.name, propType);
+        }
+    }
+
+    @Override
+    public void exitValueFromStructProp(Gi_langParser.ValueFromStructPropContext ctx) {
+        String structVariableName = ctx.ID().getText();
+        if (!structuresVariablesMappedNames.containsKey(structVariableName)) {
+            error(ctx.getStart().getLine(), "Unknown variable " + structVariableName);
+        }
+        String mappedVariableName = structuresVariablesMappedNames.get(structVariableName);
+        Structure structure = structuresVariablesToStructure.get(structVariableName);
+
+        String propName = ctx.structProp().getText();
+        if (!structure.variables.containsKey(propName)) {
+            error(ctx.getStart().getLine(), "Unknown struct property " + propName);
+        }
+        VarType type = structure.variables.get(propName);
+
+        LLVMGenerator.getPtrToStructProp(structure.name, mappedVariableName, structure.variables.keySet().stream().toList().indexOf(propName));
+
+        if (type == INT || type == REAL) {
+            LLVMGenerator.load(String.valueOf(LLVMGenerator.register - 1), type);
+            stack.push(new Value("%" + (LLVMGenerator.register - 1), type));
+        }
+    }
 
     @Override
     public void exitProg(Gi_langParser.ProgContext ctx) {

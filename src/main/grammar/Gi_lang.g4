@@ -13,10 +13,10 @@ stat: read
     | if
     | repeat
     | for
-    | functionExecStmt;
-//    | struct
-//    | structAssign
-//    | structValueAssign;
+    | functionExecStmt
+    | struct
+    | structAssign
+    | structValueAssign;
 
 globalAssign: 'global' ID '=' value ';';
 
@@ -36,6 +36,7 @@ expr1:  expr2			    #single1
 
 expr2:   value
        | '(' expr0 ')'
+       | valueFromStructProp
 ;
 
 stringConcat: ID '=' stringValue '.concat(' stringValue ')' ';';
@@ -70,12 +71,13 @@ functionExecStmt: functionExec ';';
 functionExec: ID '('functionExecParams')';
 functionExecParams: (ID',')* (ID)?;
 
-//struct: 'struct' ID '{'blockStruct'}';
-//blockStruct: (type ID ',')* (type ID)?;
-//structAssign: ID '=' 'struct' ID ';';
-//structValueAssign: structValue '=' expr0;
-//structValue: ID'.'ID;
-//
+struct: 'struct' ID '{'blockStruct'}';
+blockStruct: (type ID ',')* (type ID)?;
+structAssign: ID '=' 'struct' ID ';';
+structValueAssign: ID '.' structProp '=' value ';';
+valueFromStructProp: ID '.' structProp;
+structProp: ID;
+
 type: 'int' | 'real';
 
 IF: 'if';

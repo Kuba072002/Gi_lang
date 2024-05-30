@@ -439,14 +439,28 @@ public class LLVMGenerator {
         addTextDependOnScope();
     }
 
-//    public static void createStruct(String name, List<VarType> structTypes) {
-//        header_text += "%.struct " + name + " = type { ";
-//        for(int i = 0; i < structTypes.size(); i++) {
-//            header_text += types.get(structTypes.get(i));
-//            if(i != structTypes.size() - 1) header_text += ", ";
-//        }
-//        header_text += " }\n";
-//    }
+    public static void createStruct(String name, List<VarType> structTypes) {
+        buffer += "%struct." + name + " = type { ";
+        for(int i = 0; i < structTypes.size(); i++) {
+            buffer += types.get(structTypes.get(i));
+            if(i != structTypes.size() - 1) buffer += ", ";
+        }
+        buffer += " }\n";
+        addTextDependOnScope();
+    }
+
+    public static void getPtrToStructProp(String structName, String structVariableName, int indexInStruct) {
+        buffer += "%"+register+" = getelementptr inbounds %struct."+structName
+                +", %struct." +structName+"* %"+structVariableName+", i32 0, i32 "+indexInStruct+"\n";
+        register++;
+        addTextDependOnScope();
+    }
+
+    public static void declare_struct(String id, String structId) {
+        buffer += "%"+register+" = alloca %struct." + structId+"\n";
+        register++;
+        addTextDependOnScope();
+    }
 
     static String generate() {
         String text = "";
@@ -550,8 +564,4 @@ public class LLVMGenerator {
         buffer = "";
     }
 
-//    public static void declare_stuct(String id, String structId) {
-//        buffer += "%"+id+" = alloca %struct." + structId+"\n";
-//        register++;
-//    }
 }
