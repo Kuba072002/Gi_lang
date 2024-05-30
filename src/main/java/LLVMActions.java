@@ -1,17 +1,25 @@
 import org.antlr.v4.runtime.tree.ParseTree;
 import types.ArrayType;
+import types.FuncType;
 import types.StringType;
 import types.VarType;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Stack;
 
 import static types.VarType.*;
 
 public class LLVMActions extends Gi_langBaseListener {
-    HashMap<String, VarType> variables = new HashMap<>();
+    //    HashMap<String, VarType> variables = new HashMap<>();
+    HashMap<String, VarType> localVariables = new HashMap<>();
+    Map<String, String> localVariablesMapped = new HashMap<String, String>();
+    Map<String, String> functionsWithRetType = new HashMap<>();
     HashMap<String, VarType> globalVariables = new HashMap<>();
-
+    //    HashMap<String, HashMap<String, VarType>> structs = new HashMap<>();
+//    HashMap<String, String> declaredStructs = new HashMap<>();
+    HashMap<String, FuncType> functions = new HashMap<>();
     HashMap<String, ArrayType> arrays = new HashMap<>();
     HashMap<String, StringType> strings = new HashMap<>();
     Stack<Value> stack = new Stack<>();
@@ -24,11 +32,19 @@ public class LLVMActions extends Gi_langBaseListener {
             stack.push(new Value(ctx.REAL().getText(), REAL));
         else if (ctx.ID() != null) {
             var id = ctx.ID().getText();
-            if (variables.containsKey(id) || globalVariables.containsKey(id))
+            if (localVariables.containsKey(id) || globalVariables.containsKey(id))
                 stack.push(new Value(id, ID));
             else if (strings.containsKey(id))
                 stack.push(new Value(id, VarType.STRING));
             else error(ctx.getStart().getLine(), "Undeclared variable");
+        } else if (ctx.functionExec() != null) {
+            var str = ctx.functionExec().ID().getText();
+            var varType = functionsWithRetType.get(str);
+            if (varType == "i32"){
+                stack.push(new Value("%"+(LLVMGenerator.register-1), INT));
+            }if (varType == "double"){
+                stack.push(new Value("%"+(LLVMGenerator.register-1), REAL));
+            }
         }
     }
 
@@ -176,9 +192,14 @@ public class LLVMActions extends Gi_langBaseListener {
     public void exitAssign(Gi_langParser.AssignContext ctx) {
         String id = ctx.ID().getText();
         Value v = getValue();
-        boolean isDeclared = variables.containsKey(id);
+        boolean isDeclared;
+        isDeclared = localVariables.containsKey(id);
+        if (LLVMGenerator.global && localVariablesMapped.containsKey(id)) {
+            isDeclared = true;
+            id = localVariablesMapped.get(id);
+        }
         if (isDeclared) {
-            VarType varType = variables.get(id);
+            VarType varType = localVariables.get(id);
             if (varType != v.varType) {
                 if (varType == INT && v.varType == REAL || varType == REAL && v.varType == INT) {
                     LLVMGenerator.changeType(id, v.varType, varType);
@@ -189,7 +210,7 @@ public class LLVMActions extends Gi_langBaseListener {
         if (v.varType == INT || v.varType == REAL) {
             if (!isDeclared) {
                 LLVMGenerator.declare(id, v.varType);
-                variables.put(id, v.varType);
+                localVariables.put(id, v.varType);
             }
             LLVMGenerator.assign(id, v.name, v.varType);
         }
@@ -240,8 +261,10 @@ public class LLVMActions extends Gi_langBaseListener {
         Value v = stack.pop();
         if (v.varType == ID) {
             VarType idVarType;
-            if (variables.containsKey(v.name)) {
-                idVarType = variables.get(v.name);
+            if (localVariables.containsKey(v.name)) {
+                idVarType = localVariables.get(v.name);
+                if (LLVMGenerator.global && localVariablesMapped.containsKey(v.name))
+                    v.name = localVariablesMapped.get(v.name);
                 switch (idVarType) {
                     case INT -> LLVMGenerator.printf_int(v.name);
                     case REAL -> LLVMGenerator.printf_double(v.name);
@@ -250,13 +273,13 @@ public class LLVMActions extends Gi_langBaseListener {
             } else if (globalVariables.containsKey(v.name)) {
                 idVarType = globalVariables.get(v.name);
                 switch (idVarType) {
-                    case ID -> {
+                    case INT -> {
                         LLVMGenerator.load_global_int(v.name);
-                        LLVMGenerator.printf_int(String.valueOf(LLVMGenerator.register - 1));
+                        LLVMGenerator.printf_global_int(String.valueOf(LLVMGenerator.register - 1));
                     }
                     case REAL -> {
                         LLVMGenerator.load_global_double(v.name);
-                        LLVMGenerator.printf_double(String.valueOf(LLVMGenerator.register - 1));
+                        LLVMGenerator.printf_global_double(String.valueOf(LLVMGenerator.register - 1));
                     }
                 }
                 return;
@@ -277,10 +300,10 @@ public class LLVMActions extends Gi_langBaseListener {
     @Override
     public void exitRead(Gi_langParser.ReadContext ctx) {
         String ID = ctx.ID().getText();
-        if (!variables.containsKey(ID)) {
+        if (!localVariables.containsKey(ID)) {
             error(ctx.getStart().getLine(), "Undeclared variable");
         }
-        VarType type = variables.get(ID);
+        VarType type = localVariables.get(ID);
         if (type == INT) {
             LLVMGenerator.scanf_int(ID);
         } else if (type == REAL) {
@@ -341,10 +364,143 @@ public class LLVMActions extends Gi_langBaseListener {
         ArrayType array = arrays.get(arrName);
         if (array.varType == INT || array.varType == REAL) {
             LLVMGenerator.declare(name, array.varType);
-            variables.put(name, array.varType);
+            localVariables.put(name, array.varType);
         }
         LLVMGenerator.loopstart(name, array);
     }
+
+    @Override
+    public void enterFunc(Gi_langParser.FuncContext ctx) {
+        LLVMGenerator.global = true;
+        localVariables.clear();
+        localVariablesMapped.clear();
+        String funcName = ctx.ID().getText();
+        if (functions.containsKey(funcName)) error(ctx.getStart().getLine(), "Func already defined");
+        localVariables = new HashMap<>();
+        var ids = ctx.params().ID().stream().map(ParseTree::getText).toList();
+        var types = ctx.params().type().stream().map(x -> VarType.valueOf(x.getText().toUpperCase())).toList();
+
+        String retType = ctx.type().getText();
+        String mappedRetType = "";
+        if (retType.equals("real")) {
+            mappedRetType = "double";
+        } else if (retType.equals("int")) {
+            mappedRetType = "i32";
+        }
+        functionsWithRetType.put(funcName, mappedRetType);
+
+        int[] mappedArgsNames = LLVMGenerator.enterFunction(funcName, mappedRetType, ids, types);
+
+        for (int i = 0; i < mappedArgsNames.length; i++) {
+            if (types.get(i) == REAL) {
+                localVariables.put(ids.get(i), VarType.REAL);
+                localVariablesMapped.put(ids.get(i), String.valueOf(mappedArgsNames[i]));
+            } else if (types.get(i) == INT) {
+                localVariables.put(ids.get(i), VarType.INT);
+                localVariablesMapped.put(ids.get(i), String.valueOf(mappedArgsNames[i]));
+            }
+        }
+        functions.put(funcName, new FuncType(funcName, localVariables, null));
+
+
+    }
+
+    @Override
+    public void exitFunc(Gi_langParser.FuncContext ctx) {
+        String returnVariable = ctx.ret().ID().getText();
+        String mappedReturnVariable = localVariablesMapped.containsKey(returnVariable) ?
+                "%" + localVariablesMapped.get(returnVariable) : "%" + returnVariable;
+        String returnVariableType = ctx.type().getText();
+        LLVMGenerator.exitFunction(mappedReturnVariable, returnVariableType);
+        LLVMGenerator.global = false;
+        localVariables.clear();
+    }
+
+    @Override
+    public void exitFunctionExec(Gi_langParser.FunctionExecContext ctx) {
+        String ID = ctx.ID().getText();
+        var ids = ctx.functionExecParams().ID().stream().map(ParseTree::getText).toList();
+        var types = new ArrayList<String>(ids.size());
+        for (int i = 0; i < ids.size(); i++) {
+            String type;
+            if (globalVariables.containsKey(ids.get(i))) {
+                type = globalVariables.get(ids.get(i)).name();
+                types.add(type);
+            } else if (localVariables.containsKey(ids.get(i))) {
+                type = localVariables.get(ids.get(i)).name();
+                types.add(type);
+            } else {
+                error(ctx.getStart().getLine(), "Not found given variable " + ids.get(i));
+            }
+        }
+        LLVMGenerator.execFunc(ID, functionsWithRetType.get(ID), types, ids);
+
+    }
+
+//    @Override
+//    public void enterStruct(Gi_langParser.StructContext ctx) {
+////        LLVMGenerator.global = true;
+//        String name = ctx.ID().getText();
+//        if (structs.containsKey(name))
+//            error(ctx.getStart().getLine(), "Struct with %s already defined".formatted(name));
+//        variables = new HashMap<>();
+//    }
+//
+//    @Override
+//    public void exitStruct(Gi_langParser.StructContext ctx) {
+//        var ids = ctx.blockStruct().ID().stream()
+//                .map(ParseTree::getText)
+//                .toList();
+//        var types = ctx.blockStruct().type().stream()
+//                .map(t -> VarType.valueOf(t.getText().toUpperCase()))
+//                .toList();
+//        if (ids.isEmpty() || types.isEmpty())
+//            error(ctx.getStart().getLine(), "Wrong struct definition - cannot be empty");
+//        IntStream.range(0, ids.size()).forEach(i -> {
+//            var id = ids.get(i);
+//            if (variables.containsKey(id))
+//                error(ctx.getStart().getLine(), "Variable %s already defined in struct".formatted(id));
+//            variables.put(id, types.get(i));
+//        });
+//        String name = ctx.ID().getText();
+//        LLVMGenerator.createStruct(name, types);
+////        LLVMGenerator.global = false;
+//        structs.put(name, variables);
+//    }
+//
+//    @Override
+//    public void exitStructAssign(Gi_langParser.StructAssignContext ctx) {
+//        String id = ctx.ID(0).getText();
+//        String structId = ctx.ID(1).getText();
+//        LLVMGenerator.declare_stuct(id, structId);
+//        declaredStructs.put(id,structId);
+//    }
+//
+//
+//    @Override
+//    public void exitStructValueAssign(Gi_langParser.StructValueAssignContext ctx) {
+//        String structVariableName = ctx.ID().getText();
+//        if(!structuresVariablesMappedNames.containsKey(structVariableName)) error(ctx.getStart().getLine(), "Struct not initialized " + structVariableName);
+//        String propName = ctx.structProp().getText();
+//        Structure s = structuresVariablesToStructure.get(structVariableName);
+//        if(!s.propNames.contains(propName)) error(ctx.getStart().getLine(), "Struct does not have this prop name " + propName);
+//        String propType = s.types.get(s.propNames.indexOf(propName));
+//        if(propType.equals("i32") && ctx.structPropValue().INT() == null || propType.equals("double") && ctx.structPropValue().REAL() == null ){
+//            error(ctx.getStart().getLine(), "Trying to assign inappropriate value " + propName);
+//        }
+//        String mappedVariable = structuresVariablesMappedNames.get(structVariableName);
+//        if(ctx.structPropValue().INT()!=null){
+//            String value = ctx.structPropValue().INT().getText();
+//            LLVMGenerator.getPtrToStructProp(s.name, mappedVariable, s.propNames.indexOf(propName));
+//            LLVMGenerator.assign_i32(String.valueOf(LLVMGenerator.register-1),value);
+//        }
+//
+//        if(ctx.structPropValue().REAL()!=null){
+//            String value = ctx.structPropValue().REAL().getText();
+//            LLVMGenerator.getPtrToStructProp(s.name, mappedVariable, s.propNames.indexOf(propName));
+//            LLVMGenerator.assign_double(String.valueOf(LLVMGenerator.register-1),value);
+//        }
+//    }
 
     @Override
     public void exitProg(Gi_langParser.ProgContext ctx) {
@@ -358,8 +514,14 @@ public class LLVMActions extends Gi_langBaseListener {
     }
 
     void convertVar(Value v) {
-        if (variables.containsKey(v.name)) {
-            v.varType = variables.get(v.name);
+//        if ()
+        if (localVariables.containsKey(v.name)) {
+            v.varType = localVariables.get(v.name);
+            if (LLVMGenerator.global) {
+                if (localVariablesMapped.containsKey(v.name)) {
+                    v.name = localVariablesMapped.get(v.name);
+                }
+            }
             if (v.varType == INT || v.varType == REAL) {
                 LLVMGenerator.load(v.name, v.varType);
                 v.name = "%" + (LLVMGenerator.register - 1);

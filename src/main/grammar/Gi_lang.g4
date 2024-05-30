@@ -6,12 +6,17 @@ stat: read
     | print
     | stringConcat
     | globalAssign
+    | func
     | assign
     | assignArr
     | assignString
     | if
     | repeat
-    | for;
+    | for
+    | functionExecStmt;
+//    | struct
+//    | structAssign
+//    | structValueAssign;
 
 globalAssign: 'global' ID '=' value ';';
 
@@ -36,7 +41,9 @@ expr2:   value
 stringConcat: ID '=' stringValue '.concat(' stringValue ')' ';';
 stringValue: STRING|ID;
 
-value: ID | INT | REAL | arrValue;
+value: ID | INT | REAL | arrValue | functionExec
+//| structValue
+;
 arrValue: ID '[' INT ']';
 
 print: PRINT '(' value ')'';';
@@ -53,6 +60,23 @@ blockLoop: stat*;
 
 for: forHead '{' blockLoop '}';
 forHead: 'for' ID 'in' ID;
+
+func: type 'def' ID '(' params ')''{' blockFunc ret?'}';
+blockFunc: stat*;
+params:  (type ID ',')* (type ID)?;
+ret: 'return' ID ';';
+
+functionExecStmt: functionExec ';';
+functionExec: ID '('functionExecParams')';
+functionExecParams: (ID',')* (ID)?;
+
+//struct: 'struct' ID '{'blockStruct'}';
+//blockStruct: (type ID ',')* (type ID)?;
+//structAssign: ID '=' 'struct' ID ';';
+//structValueAssign: structValue '=' expr0;
+//structValue: ID'.'ID;
+//
+type: 'int' | 'real';
 
 IF: 'if';
 EQUAL: '==';
