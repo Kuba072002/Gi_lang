@@ -252,7 +252,7 @@ public class LLVMActions extends Gi_langBaseListener {
             if (variables.containsKey(v.name)) {
                 idVarType = variables.get(v.name);
                 switch (idVarType){
-                    case ID -> LLVMGenerator.printf_int(v.name);
+                    case INT -> LLVMGenerator.printf_int(v.name);
                     case REAL -> LLVMGenerator.printf_double(v.name);
                 }
                 return;
